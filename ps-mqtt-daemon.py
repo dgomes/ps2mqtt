@@ -39,7 +39,7 @@ def load_properties():
 
     return properties
 
-def gen_ha_config(sensor):
+def gen_ha_config(sensor, properties):
     hostname = platform.node()
     json_config = {
         "name": "{} {}".format(hostname, sensor),
@@ -54,24 +54,25 @@ def gen_ha_config(sensor):
     return json.dumps(json_config)
 
 log_format = '%(asctime)s %(levelname)s: %(message)s'
-logging.basicConfig(format=log_format, level=logging.DEBUG)
+logging.basicConfig(format=log_format, level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def status(mqttc, properties, s):
+def status(mqttc, properties, s, period):
     for p in properties.keys():
         mqttc.publish(MQTT_STATE_TOPIC.format(MQTT_BASE_TOPIC, p), properties[p]["call"]())
-    s.enter(60, 1, status, (mqttc, properties, s))
+    s.enter(period, 1, status, (mqttc, properties, s, period))
 
 def on_connect(client, properties, flags, result, ha_prefix=DEFAULT_HA_DISCOVERY_PREFIX):
     client.publish(MQTT_PS2MQTT_STATUS.format(MQTT_BASE_TOPIC),MQTT_AVAILABLE,retain=True)
     for p in properties.keys():
-        client.publish(HA_DISCOVERY_PREFIX.format(ha_prefix, p), gen_ha_config(p), retain=True)
+        logger.debug("Adding %s", p)
+        rc = client.publish(HA_DISCOVERY_PREFIX.format(ha_prefix, p), gen_ha_config(p, properties), retain=True)
 
-def main_loop(mqtt_server, mqtt_port, ha_prefix):
+def main_loop(period, mqtt_server, mqtt_port, ha_prefix):
     properties = load_properties()
 
     logger.debug("Connecting to %s:%s", mqtt_server, mqtt_port)
-    mqttc = mqtt.Client(client_id="ps2mqtt", userdata=properties)
+    mqttc = mqtt.Client(client_id="ps2mqtt_"+platform.node(), userdata=properties)
     mqttc.will_set(MQTT_PS2MQTT_STATUS.format(MQTT_BASE_TOPIC),MQTT_NOT_AVAILABLE,retain=True)
     mqttc.on_connect = lambda a,b,c,d: on_connect(a,b,c,d, ha_prefix)
 
@@ -80,13 +81,15 @@ def main_loop(mqtt_server, mqtt_port, ha_prefix):
     mqttc.loop_start()
 
     s = sched.scheduler(time.time, time.sleep)
-    status(mqttc, properties, s)
+    status(mqttc, properties, s, period)
+
     s.run()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", help="configuration file", default="config.ini")
+    parser.add_argument("--period", help="updates period in seconds", type=int, default=60)
     parser.add_argument("--mqtt-server", help="MQTT server", default="localhost")
     parser.add_argument("--mqtt-port", help="MQTT port", type=int, default=1883)
     parser.add_argument("--mqtt-base-topic", help="MQTT base topic", default=DEFAULT_MQTT_BASE_TOPIC)
@@ -107,7 +110,7 @@ if __name__ == "__main__":
 
         MQTT_BASE_TOPIC = config["mqtt_base_topic"]
 
-        main_loop(config["mqtt_server"], config["mqtt_port"], config["ha_discover_prefix"])
+        main_loop(config["period"], config["mqtt_server"], config["mqtt_port"], config["ha_discover_prefix"])
     except FileNotFoundError as e:
         logger.info("Configuration file %s created, please reload daemon", args.config)
     except KeyError as e:
