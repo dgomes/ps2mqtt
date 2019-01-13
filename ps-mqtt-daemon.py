@@ -27,12 +27,17 @@ MQTT_NOT_AVAILABLE = "offline"
 
 HA_DISCOVERY_PREFIX="{}/sensor/ps2mqtt_"+platform.node()+"/{}/config"
 
+def load_properties():
+    properties = {"cpu_percent": {"unit": "%", "icon": "mdi:chip", "call": lambda: psutil.cpu_percent(interval=None)},
+                  "virtual_memory": {"unit": "%", "icon": "mdi:memory", "call": lambda: psutil.virtual_memory().percent},
+                  "bytes_sent": {"unit": "MiB", "icon": "mdi:upload-network", "call": lambda: psutil.net_io_counters().bytes_sent/1000000},
+                  "bytes_recv": {"unit": "MiB", "icon": "mdi:download-network", "call": lambda: psutil.net_io_counters().bytes_recv/1000000},
+                }
 
-properties = {"cpu_percent": {"unit": "%", "icon": "mdi:chip", "call": lambda: psutil.cpu_percent(interval=None)},
-              "virtual_memory": {"unit": "%", "icon": "mdi:memory", "call": lambda: psutil.virtual_memory().percent},
-              "bytes_sent": {"unit": "MiB", "icon": "mdi:upload-network", "call": lambda: psutil.net_io_counters().bytes_sent/1000000},
-              "bytes_recv": {"unit": "MiB", "icon": "mdi:download-network", "call": lambda: psutil.net_io_counters().bytes_recv/1000000},
-              }
+    for temp_sensor in psutil.sensors_temperatures():
+        properties[temp_sensor] = {"unit": "°C", "icon": "mdi:thermometer", "call": lambda: psutil.sensors_temperatures()[temp_sensor][0].current}
+
+    return properties
 
 def gen_ha_config(sensor):
     hostname = platform.node()
@@ -52,20 +57,21 @@ log_format = '%(asctime)s %(levelname)s: %(message)s'
 logging.basicConfig(format=log_format, level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-def status(mqttc, s):
+def status(mqttc, properties, s):
     for p in properties.keys():
         mqttc.publish(MQTT_STATE_TOPIC.format(MQTT_BASE_TOPIC, p), properties[p]["call"]())
-    s.enter(60, 1, status, (mqttc, s))
+    s.enter(60, 1, status, (mqttc, properties, s))
 
-def on_connect(client, userdata, flags, result, ha_prefix=DEFAULT_HA_DISCOVERY_PREFIX):
+def on_connect(client, properties, flags, result, ha_prefix=DEFAULT_HA_DISCOVERY_PREFIX):
     client.publish(MQTT_PS2MQTT_STATUS.format(MQTT_BASE_TOPIC),MQTT_AVAILABLE,retain=True)
     for p in properties.keys():
         client.publish(HA_DISCOVERY_PREFIX.format(ha_prefix, p), gen_ha_config(p), retain=True)
 
 def main_loop(mqtt_server, mqtt_port, ha_prefix):
-    
+    properties = load_properties()
+
     logger.debug("Connecting to %s:%s", mqtt_server, mqtt_port)
-    mqttc = mqtt.Client(client_id="ps2mqtt")
+    mqttc = mqtt.Client(client_id="ps2mqtt", userdata=properties)
     mqttc.will_set(MQTT_PS2MQTT_STATUS.format(MQTT_BASE_TOPIC),MQTT_NOT_AVAILABLE,retain=True)
     mqttc.on_connect = lambda a,b,c,d: on_connect(a,b,c,d, ha_prefix)
 
@@ -74,7 +80,7 @@ def main_loop(mqtt_server, mqtt_port, ha_prefix):
     mqttc.loop_start()
 
     s = sched.scheduler(time.time, time.sleep)
-    status(mqttc, s)
+    status(mqttc, properties, s)
     s.run()
 
 
