@@ -15,6 +15,8 @@ import paho.mqtt.client as mqtt
 import platform
 import psutil
 import sched, time
+from decimal import *
+getcontext().prec = 2
 
 DEFAULT_MQTT_BASE_TOPIC = "ps2mqtt"
 DEFAULT_HA_DISCOVERY_PREFIX = "homeassistant_fake"
@@ -27,15 +29,30 @@ MQTT_NOT_AVAILABLE = "offline"
 
 HA_DISCOVERY_PREFIX="{}/sensor/ps2mqtt_"+platform.node()+"/{}/config"
 
+last = {}
+
+def rate(key, value):
+    rate = 0
+    now = time.time()
+    if key in last:
+        ltime, lvalue = last[key]
+        rate = Decimal(value - lvalue) / Decimal(now - ltime) 
+    last[key] = now, value
+
+    return float(rate)
+
 def load_properties():
     properties = {"cpu_percent": {"unit": "%", "icon": "mdi:chip", "call": lambda: psutil.cpu_percent(interval=None)},
                   "virtual_memory": {"unit": "%", "icon": "mdi:memory", "call": lambda: psutil.virtual_memory().percent},
                   "bytes_sent": {"unit": "MiB", "icon": "mdi:upload-network", "call": lambda: psutil.net_io_counters().bytes_sent/1000000},
                   "bytes_recv": {"unit": "MiB", "icon": "mdi:download-network", "call": lambda: psutil.net_io_counters().bytes_recv/1000000},
+                  "upload": {"unit": "kbps", "icon": "mdi:upload-network", "call": lambda: rate("upload", psutil.net_io_counters().bytes_sent/1000)},
+                  "download": {"unit": "kbps", "icon": "mdi:download-network", "call": lambda: rate("download", psutil.net_io_counters().bytes_recv/1000)},
                 }
 
-    for temp_sensor in psutil.sensors_temperatures():
-        properties[temp_sensor] = {"unit": "°C", "icon": "mdi:thermometer", "call": lambda: psutil.sensors_temperatures()[temp_sensor][0].current}
+    if hasattr(psutil, "sensors_temperatures"):
+        for temp_sensor in psutil.sensors_temperatures():
+            properties[temp_sensor] = {"unit": "°C", "icon": "mdi:thermometer", "call": lambda: psutil.sensors_temperatures()[temp_sensor][0].current}
 
     return properties
 
