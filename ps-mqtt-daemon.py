@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 __author__ = "Diogo Gomes"
-__version__ = "0.0.1"
+__version__ = "0.0.2"
 __email__ = "diogogomes@gmail.com"
 
 import argparse
@@ -44,6 +44,7 @@ def rate(key, value):
 def load_properties():
     properties = {"cpu_percent": {"unit": "%", "icon": "mdi:chip", "call": lambda: psutil.cpu_percent(interval=None)},
                   "virtual_memory": {"unit": "%", "icon": "mdi:memory", "call": lambda: psutil.virtual_memory().percent},
+                  "uptime": {"unit": "s", "icon": "mdi:clock-outline", "call": lambda: int(time.time() - psutil.boot_time())},
                   "bytes_sent": {"unit": "MiB", "icon": "mdi:upload-network", "call": lambda: psutil.net_io_counters().bytes_sent/1000000},
                   "bytes_recv": {"unit": "MiB", "icon": "mdi:download-network", "call": lambda: psutil.net_io_counters().bytes_recv/1000000},
                   "upload": {"unit": "kbps", "icon": "mdi:upload-network", "call": lambda: rate("upload", psutil.net_io_counters().bytes_sent/1000)},
