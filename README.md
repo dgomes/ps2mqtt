@@ -1,3 +1,5 @@
+[![PyPI version](https://badge.fury.io/py/ps2mqtt.svg)](https://badge.fury.io/py/ps2mqtt)
+
 # ps2mqtt
 Python daemon that gets information from [psutil](https://github.com/giampaolo/psutil) to an mqtt broker for integration with [Home Assistant](https://www.home-assistant.io).
 
