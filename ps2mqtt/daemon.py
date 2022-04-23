@@ -153,12 +153,14 @@ def on_connect(client, userdata, flags, result):
 def main():
     """Start main daemon."""
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", help="configuration file", default="config.yaml")
+    parser.add_argument("--config", help="configuration file, will be created if non existing")
     parser.add_argument(
         "--period", help="updates period in seconds", type=int, default=60
     )
     parser.add_argument("--mqtt-server", help="MQTT server", default="localhost")
     parser.add_argument("--mqtt-port", help="MQTT port", type=int, default=1883)
+    parser.add_argument("--mqtt-username", help="MQTT username", default=None)
+    parser.add_argument("--mqtt-password", help="MQTT password", default=None)
     parser.add_argument(
         "--mqtt-base-topic", help="MQTT base topic", default=MQTT_BASE_TOPIC
     )
@@ -167,37 +169,73 @@ def main():
     )
 
     args = parser.parse_args()
-
-    config = {
-        "mqtt_server": args.mqtt_server,
-        "mqtt_port": args.mqtt_port,
-        "mqtt_base_topic": args.mqtt_base_topic,
-        "ha_discover_prefix": args.ha_discover_prefix,
-    }
+    config_file = {}
 
     try:
-        with open(args.config, "r") as stream:
-            logger.debug("Loading configuration from <%s>", args.config)
-            config = yaml.load(stream, Loader=Loader)
+        if args.config:
+            with open(args.config, "r") as infile:
+                logger.debug("Loading configuration from <%s>", args.config)
+                config_file = yaml.safe_load(infile)
+    except FileNotFoundError as e:
+        logger.info(
+            "Configuration file %s not found. Using default values", args.config
+        )
+    finally:
 
-        properties = load_properties()
-
-        logger.debug("Connecting to %s:%s", config["mqtt_server"], config["mqtt_port"])
-        mqttc = mqtt.Client(
-            client_id=slugify(f"ps2mqtt {platform.node()}"),
-            userdata=(
-                properties,
-                config["ha_discover_prefix"],
-                config["mqtt_base_topic"],
+        config = {
+            "mqtt_server": config_file.get("mqtt_server", args.mqtt_server),
+            "mqtt_port": config_file.get("mqtt_port", args.mqtt_port),
+            "mqtt_username": config_file.get("mqtt_username", args.mqtt_username),
+            "mqtt_password": config_file.get("mqtt_password", args.mqtt_password),
+            "mqtt_base_topic": config_file.get("mqtt_base_topic", args.mqtt_base_topic),
+            "ha_discover_prefix": config_file.get(
+                "ha_discover_prefix", args.ha_discover_prefix
             ),
-        )
-        mqttc.will_set(
-            MQTT_PS2MQTT_STATUS.format(config["mqtt_base_topic"]),
-            MQTT_NOT_AVAILABLE,
-            retain=True,
-        )
-        mqttc.on_connect = on_connect
+            "period": config_file.get("period", args.period),
+        }
 
+        for key in [k for k in config]:
+            if args.__dict__[key] != parser.get_default(
+                key
+            ):  # update config_file from args if not default
+                logger.debug("Updating %s with %s", key, args.__dict__[key])
+                config[key] = args.__dict__[key]
+            if config[key] is None:  # remove keys which are None
+                del config[key]
+
+        if args.config:
+            with open(args.config, "w", encoding="utf8") as outfile:
+                yaml.dump(
+                    config,
+                    outfile,
+                    default_flow_style=False,
+                    allow_unicode=True,
+                    Dumper=Dumper,
+                )
+                logger.info("Saving configuration in %s", args.config)
+
+    properties = load_properties()
+
+    logger.debug("Connecting to %s:%s", config["mqtt_server"], config["mqtt_port"])
+    mqttc = mqtt.Client(
+        client_id=slugify(f"ps2mqtt {platform.node()}"),
+        userdata=(
+            properties,
+            config["ha_discover_prefix"],
+            config["mqtt_base_topic"],
+        ),
+    )
+    mqttc.will_set(
+        MQTT_PS2MQTT_STATUS.format(config["mqtt_base_topic"]),
+        MQTT_NOT_AVAILABLE,
+        retain=True,
+    )
+    mqttc.on_connect = on_connect
+
+    if "mqtt_username" in config and "mqtt_password" in config:
+        mqttc.username_pw_set(config["mqtt_username"], config["mqtt_password"])
+
+    try:
         mqttc.connect(config["mqtt_server"], config["mqtt_port"], 60)
 
         mqttc.loop_start()
@@ -206,22 +244,13 @@ def main():
         status(mqttc, properties, s, config["period"], config["mqtt_base_topic"])
 
         s.run()
-
-    except FileNotFoundError as e:
-        logger.info("Configuration file %s created, please reload daemon", args.config)
-    except KeyError as e:
-        missing_key = e.args[0]
-        config[missing_key] = args.__dict__[missing_key]
-        logger.info("Configuration file updated, please reload daemon")
-    finally:
-        with open(args.config, "w", encoding="utf8") as outfile:
-            yaml.dump(
-                config,
-                outfile,
-                default_flow_style=False,
-                allow_unicode=True,
-                Dumper=Dumper,
-            )
+    except Exception as e:
+        logger.error(
+            "While connecting to %s:%s %s",
+            config["mqtt_server"],
+            config["mqtt_port"],
+            e,
+        )
 
 
 if __name__ == "__main__":
