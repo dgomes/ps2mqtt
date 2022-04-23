@@ -8,6 +8,7 @@ import argparse
 import json
 import logging
 import platform
+import os
 import sched
 import time
 from datetime import datetime
@@ -31,7 +32,7 @@ HA_DISCOVERY_PREFIX = "{}/sensor/ps2mqtt_{}/{}/config"
 OPTIONAL_ATTR = ["device_class", "icon", "unit_of_measurement"]
 
 log_format = "%(asctime)s %(levelname)s: %(message)s"
-logging.basicConfig(format=log_format, level=logging.DEBUG)
+logging.basicConfig(format=log_format, level=os.environ.get("LOGLEVEL", "INFO"))
 logger = logging.getLogger(__name__)
 
 last = {}
@@ -128,32 +129,50 @@ def gen_ha_config(sensor, properties, base_topic):
     return json.dumps(json_config)
 
 
-def status(mqttc, properties, s, period, base_topic):
+def status(mqttc, properties, status_schedurer, period, base_topic):
     """Publish status and schedule the next."""
     for p in properties.keys():
-        mqttc.publish(MQTT_STATE_TOPIC.format(base_topic, p), properties[p]["call"]())
-    s.enter(period, 1, status, (mqttc, properties, s, period, base_topic))
+        try:
+            mqttc.publish(MQTT_STATE_TOPIC.format(base_topic, p), properties[p]["call"]())
+        except Exception as e:
+            logger.error(e)
+    status_schedurer.enter(period, 1, status, (mqttc, properties, status_schedurer, period, base_topic))
+
+
+def publish_ha_discovery(client, properties, config):
+    """Publish HA discovery information."""
+
+    client.publish(MQTT_PS2MQTT_STATUS.format(config["mqtt_base_topic"]), MQTT_AVAILABLE, retain=False)
+    for p in properties.keys():
+        logger.debug("HA Discovery configuration for %s", p)
+        client.publish(
+            HA_DISCOVERY_PREFIX.format(
+                config["ha_discover_prefix"], slugify(platform.node()), p
+            ),
+            gen_ha_config(p, properties, config["mqtt_base_topic"]),
+            retain=True,
+        )
+
+
+def on_message(client, userdata, flags):
+    """MQTT Message callback."""
+    publish_ha_discovery(client, *userdata)
 
 
 def on_connect(client, userdata, flags, result):
     """MQTT Connect callback."""
 
-    properties, ha_prefix, base_topic = userdata
-
-    client.publish(MQTT_PS2MQTT_STATUS.format(base_topic), MQTT_AVAILABLE, retain=True)
-    for p in properties.keys():
-        logger.debug("Adding %s", p)
-        client.publish(
-            HA_DISCOVERY_PREFIX.format(ha_prefix, slugify(platform.node()), p),
-            gen_ha_config(p, properties, base_topic),
-            retain=True,
-        )
+    _, config = userdata
+    client.subscribe(config["ha_status_topic"])
+    publish_ha_discovery(client, *userdata)
 
 
 def main():
     """Start main daemon."""
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", help="configuration file, will be created if non existing")
+    parser.add_argument(
+        "--config", help="configuration file, will be created if non existing"
+    )
     parser.add_argument(
         "--period", help="updates period in seconds", type=int, default=60
     )
@@ -167,7 +186,9 @@ def main():
     parser.add_argument(
         "--ha-discover-prefix", help="HA discover mqtt prefix", default="homeassistant"
     )
-
+    parser.add_argument(
+        "--ha-status-topic", help="HA status mqtt topic", default="homeassistant/status"
+    )
     args = parser.parse_args()
     config_file = {}
 
@@ -191,6 +212,7 @@ def main():
             "ha_discover_prefix": config_file.get(
                 "ha_discover_prefix", args.ha_discover_prefix
             ),
+            "ha_status_topic": config_file.get("ha_status_topic", args.ha_status_topic),
             "period": config_file.get("period", args.period),
         }
 
@@ -219,17 +241,14 @@ def main():
     logger.debug("Connecting to %s:%s", config["mqtt_server"], config["mqtt_port"])
     mqttc = mqtt.Client(
         client_id=slugify(f"ps2mqtt {platform.node()}"),
-        userdata=(
-            properties,
-            config["ha_discover_prefix"],
-            config["mqtt_base_topic"],
-        ),
+        userdata=(properties, config),
     )
     mqttc.will_set(
         MQTT_PS2MQTT_STATUS.format(config["mqtt_base_topic"]),
         MQTT_NOT_AVAILABLE,
         retain=True,
     )
+    mqttc.on_message = on_message
     mqttc.on_connect = on_connect
 
     if "mqtt_username" in config and "mqtt_password" in config:
@@ -237,13 +256,13 @@ def main():
 
     try:
         mqttc.connect(config["mqtt_server"], config["mqtt_port"], 60)
-
         mqttc.loop_start()
 
-        s = sched.scheduler(time.time, time.sleep)
-        status(mqttc, properties, s, config["period"], config["mqtt_base_topic"])
+        status_schedurer = sched.scheduler(time.time, time.sleep)
+        status(mqttc, properties, status_schedurer, config["period"], config["mqtt_base_topic"])
 
-        s.run()
+        status_schedurer.run() #block indefinentely
+
     except Exception as e:
         logger.error(
             "While connecting to %s:%s %s",

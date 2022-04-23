@@ -3,13 +3,13 @@ Description=ps2mqtt
 After=network.target
 
 [Service]
-ExecStart=/home/homeassistant/ps2mqtt/venv/bin/python3 ps-mqtt-daemon.py
-WorkingDirectory=/home/homeassistant/ps2mqtt
+ExecStart=ps2mqtt
+WorkingDirectory=/tmp
 StandardOutput=inherit
 StandardError=inherit
 Environment=PYTHONUNBUFFERED=true
 Restart=always
-User=homeassistant
+User=root
 
 [Install]
 WantedBy=multi-user.target

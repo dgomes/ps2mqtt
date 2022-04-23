@@ -15,10 +15,11 @@ setup(
     package_dir={"": "ps2mqtt"},
     packages=find_namespace_packages(where="ps2mqtt", exclude=["tests"]),
     install_requires=[
-        "setuptools>=45.0",
+        "setuptools==45.0",
         "paho-mqtt>=1.6.1",
-        "psutil>=5.9.0",
-        "PyYAML>=6.0"
+        "python-slugify>=6.1.1"
+        "psutil==5.9.0",
+        "PyYAML==6.0"
     ],
     entry_points={
         "console_scripts": [
