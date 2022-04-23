@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
 """Host Statistic Information to MQTT."""
-__author__ = "Diogo Gomes"
-__version__ = "0.0.3"
-__email__ = "diogogomes@gmail.com"
 
 import argparse
 import json
@@ -19,6 +16,8 @@ import psutil
 import yaml
 from slugify import slugify
 from yaml import Dumper, Loader
+
+from . import __version__
 
 getcontext().prec = 2
 
