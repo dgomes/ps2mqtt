@@ -15,7 +15,7 @@ import paho.mqtt.client as mqtt
 import psutil
 import yaml
 from slugify import slugify
-from yaml import Dumper, Loader
+from yaml import Dumper
 
 from . import __version__
 
@@ -132,16 +132,29 @@ def status(mqttc, properties, status_schedurer, period, base_topic):
     """Publish status and schedule the next."""
     for p in properties.keys():
         try:
-            mqttc.publish(MQTT_STATE_TOPIC.format(base_topic, p), properties[p]["call"]())
+            mqttc.publish(
+                MQTT_STATE_TOPIC.format(base_topic, p), properties[p]["call"]()
+            )
         except Exception as e:
             logger.error(e)
-    status_schedurer.enter(period, 1, status, (mqttc, properties, status_schedurer, period, base_topic))
+    status_schedurer.enter(
+        period, 1, status, (mqttc, properties, status_schedurer, period, base_topic)
+    )
+
+    mqttc.publish(
+        MQTT_PS2MQTT_STATUS.format(base_topic),
+        MQTT_AVAILABLE,
+    )
 
 
 def publish_ha_discovery(client, properties, config):
     """Publish HA discovery information."""
 
-    client.publish(MQTT_PS2MQTT_STATUS.format(config["mqtt_base_topic"]), MQTT_AVAILABLE, retain=False)
+    client.publish(
+        MQTT_PS2MQTT_STATUS.format(config["mqtt_base_topic"]),
+        MQTT_AVAILABLE,
+        retain=False,
+    )
     for p in properties.keys():
         logger.debug("HA Discovery configuration for %s", p)
         client.publish(
@@ -196,7 +209,7 @@ def main():
             with open(args.config, "r") as infile:
                 logger.debug("Loading configuration from <%s>", args.config)
                 config_file = yaml.safe_load(infile)
-    except FileNotFoundError as e:
+    except FileNotFoundError:
         logger.info(
             "Configuration file %s not found. Using default values", args.config
         )
@@ -215,7 +228,7 @@ def main():
             "period": config_file.get("period", args.period),
         }
 
-        for key in [k for k in config]:
+        for key in list(config):
             if args.__dict__[key] != parser.get_default(
                 key
             ):  # update config_file from args if not default
@@ -258,9 +271,15 @@ def main():
         mqttc.loop_start()
 
         status_schedurer = sched.scheduler(time.time, time.sleep)
-        status(mqttc, properties, status_schedurer, config["period"], config["mqtt_base_topic"])
+        status(
+            mqttc,
+            properties,
+            status_schedurer,
+            config["period"],
+            config["mqtt_base_topic"],
+        )
 
-        status_schedurer.run() #block indefinentely
+        status_schedurer.run()  # block indefinentely
 
     except Exception as e:
         logger.error(
