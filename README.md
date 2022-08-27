@@ -42,3 +42,22 @@ ps2mqtt has several command line options you should use when customizing ps2mqtt
   ```
   
 You can also store all the options in a file, just run all your options plus the `--config /etc/ps2mqtt.yaml` to store all your parameters in a config file. Next time you run, just use `--config /etc/ps2mqtt.yaml`.
+
+## Docker
+
+```
+docker run -d \
+  --name=ps2mqtt \
+  -e MQTT_HOST=mqtt-broker-ip \
+  -e MQTT_PORT=1883 \
+  -e MQTT_USERNAME=username \
+  -e MQTT_PASSWORD=password \
+  -e MQTT_BASE_TOPIC=ps2mqtt \
+  -e HA_DISCOVER_PREFIX=homeassistant \
+  -e HA_STATUS_TOPIC=ps2mqtt/status \
+  -e PERIOD=60 \
+  --restart unless-stopped \
+  sthopeless/ps2mqtt:latest
+```
+
+Or copy the docker-compose.yml file edit with your configurations and start with `docker-compose up -d` or paste into Portainer stacks and run.
