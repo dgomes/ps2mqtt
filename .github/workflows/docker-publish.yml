@@ -14,9 +14,6 @@ on:
     types: [published]
   schedule:
     - cron: '0 0 * * SUN'
-  push:
-    branches:
-      - master
 
 jobs:
   push_to_registries:
