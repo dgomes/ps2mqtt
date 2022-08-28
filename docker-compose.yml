@@ -1,0 +1,16 @@
+---
+version: "3.8"
+services:
+  ps2mqtt:
+    image: sthopeless/ps2mqtt:latest
+    container_name: ps2mqtt
+    restart: unless-stopped
+    environment:
+      - MQTT_HOST=mqtt-broker-ip
+      - MQTT_PORT=1883
+      - MQTT_USERNAME=username
+      - MQTT_PASSWORD=password
+      - MQTT_BASE_TOPIC=ps2mqtt
+      - HA_DISCOVER_PREFIX=homeassistant
+      - HA_STATUS_TOPIC=ps2mqtt/status
+      - PERIOD=60
