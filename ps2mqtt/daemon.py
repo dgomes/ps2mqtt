@@ -17,7 +17,7 @@ import yaml
 from slugify import slugify
 from yaml import Dumper
 
-
+from . import __version__
 getcontext().prec = 2
 
 MQTT_BASE_TOPIC = f"ps2mqtt/{slugify(platform.node())}"
@@ -117,6 +117,7 @@ def gen_ha_config(sensor, properties, base_topic):
             "name": f"{platform.node()}",
             "sw_version": platform.platform(),
             "model": platform.system(),
+            "manufacturer": f"ps2mqtt {__version__}",
         },
     }
     for attr in OPTIONAL_ATTR:
