@@ -61,6 +61,11 @@ def load_properties():
             "icon": "mdi:memory",
             "call": lambda: psutil.virtual_memory().percent,
         },
+        "os_disk_usage": {
+            "unit_of_measurement": "%",
+            "icon": "mdi:harddisk",
+            "call": lambda: psutil.disk_usage('/').percent,
+        },
         "uptime": {
             "device_class": "timestamp",
             "call": lambda: datetime.fromtimestamp(psutil.boot_time())
@@ -127,7 +132,7 @@ def gen_ha_config(sensor, properties, base_topic):
     return json.dumps(json_config)
 
 
-def status(mqttc, properties, status_schedurer, period, base_topic):
+def status(mqttc, properties, status_scheduler, period, base_topic):
     """Publish status and schedule the next."""
     for p in properties.keys():
         try:
@@ -136,8 +141,8 @@ def status(mqttc, properties, status_schedurer, period, base_topic):
             )
         except Exception as e:
             logger.error(e)
-    status_schedurer.enter(
-        period, 1, status, (mqttc, properties, status_schedurer, period, base_topic)
+    status_scheduler.enter(
+        period, 1, status, (mqttc, properties, status_scheduler, period, base_topic)
     )
 
     mqttc.publish(
@@ -165,12 +170,12 @@ def publish_ha_discovery(client, properties, config):
         )
 
 
-def on_message(client, userdata, flags):
+def on_message(client, userdata, _flags):
     """MQTT Message callback."""
     publish_ha_discovery(client, *userdata)
 
 
-def on_connect(client, userdata, flags, result):
+def on_connect(client, userdata, _flags, _result):
     """MQTT Connect callback."""
 
     _, config = userdata
@@ -271,16 +276,16 @@ def main():
         mqttc.connect(config["mqtt_server"], config["mqtt_port"], 60)
         mqttc.loop_start()
 
-        status_schedurer = sched.scheduler(time.time, time.sleep)
+        status_scheduler = sched.scheduler(time.time, time.sleep)
         status(
             mqttc,
             properties,
-            status_schedurer,
+            status_scheduler,
             config["period"],
             config["mqtt_base_topic"],
         )
 
-        status_schedurer.run()  # block indefinentely
+        status_scheduler.run()  # block indefinitely
 
     except Exception as e:
         logger.error(
