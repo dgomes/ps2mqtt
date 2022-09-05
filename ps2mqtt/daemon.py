@@ -18,7 +18,6 @@ from slugify import slugify
 from yaml import Dumper
 
 from . import __version__
-
 getcontext().prec = 2
 
 MQTT_BASE_TOPIC = f"ps2mqtt/{slugify(platform.node())}"
@@ -180,28 +179,30 @@ def on_connect(client, userdata, flags, result):
 
 
 def main():
+
     """Start main daemon."""
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--config", help="configuration file, will be created if non existing"
     )
     parser.add_argument(
-        "--period", help="updates period in seconds", type=int, default=60
+        "--period", help="updates period in seconds", type=int, default=os.environ.get("PERIOD", 60)
     )
-    parser.add_argument("--mqtt-server", help="MQTT server", default="localhost")
-    parser.add_argument("--mqtt-port", help="MQTT port", type=int, default=1883)
-    parser.add_argument("--mqtt-username", help="MQTT username", default=None)
-    parser.add_argument("--mqtt-password", help="MQTT password", default=None)
+    parser.add_argument("--mqtt-server", help="MQTT server", default=os.environ.get("MQTT_SERVER", "localhost"))
+    parser.add_argument("--mqtt-port", help="MQTT port", type=int, default=os.environ.get("MQTT_PORT", 1883))
+    parser.add_argument("--mqtt-username", help="MQTT username", default=os.environ.get("MQTT_USERNAME", None))
+    parser.add_argument("--mqtt-password", help="MQTT password", default=os.environ.get("MQTT_PASSWORD", None))
     parser.add_argument(
-        "--mqtt-base-topic", help="MQTT base topic", default=MQTT_BASE_TOPIC
-    )
-    parser.add_argument(
-        "--ha-discover-prefix", help="HA discover mqtt prefix", default="homeassistant"
+        "--mqtt-base-topic", help="MQTT base topic", default=os.environ.get("MQTT_BASE_TOPIC", MQTT_BASE_TOPIC)
     )
     parser.add_argument(
-        "--ha-status-topic", help="HA status mqtt topic", default="homeassistant/status"
+        "--ha-discover-prefix", help="HA discover mqtt prefix", default=os.environ.get("HA_DISCOVER_PREFIX", "homeassistant")
+    )
+    parser.add_argument(
+        "--ha-status-topic", help="HA status mqtt topic", default=os.environ.get("HA_STATUS_TOPIC", "homeassistant/status")
     )
     args = parser.parse_args()
+
     config_file = {}
 
     try:
