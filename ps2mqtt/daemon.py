@@ -17,7 +17,6 @@ import yaml
 from slugify import slugify
 from yaml import Dumper
 
-from . import __version__
 
 getcontext().prec = 2
 
@@ -118,7 +117,6 @@ def gen_ha_config(sensor, properties, base_topic):
             "name": f"{platform.node()}",
             "sw_version": platform.platform(),
             "model": platform.system(),
-            "manufacturer": f"ps2mqtt {__version__}",
         },
     }
     for attr in OPTIONAL_ATTR:
@@ -180,28 +178,40 @@ def on_connect(client, userdata, flags, result):
 
 
 def main():
+
+    period = os.environ.get("PERIOD", 60)
+    mqtt_server = os.environ.get("MQTT_SERVER", "localhost")
+    mqtt_port = os.environ.get("MQTT_PORT", 1883)
+    mqtt_username = os.environ.get("MQTT_USERNAME", None)
+    mqtt_password = os.environ.get("MQTT_PASSWORD", None)
+    mqtt_base_topic = os.environ.get("MQTT_BASE_TOPIC", MQTT_BASE_TOPIC)
+    ha_discover_prefix = os.environ.get("HA_DISCOVER_PREFIX", "homeassistant")
+    ha_status_topic = os.environ.get("HA_STATUS_TOPIC", "homeassistant/status")
+
+
     """Start main daemon."""
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--config", help="configuration file, will be created if non existing"
     )
     parser.add_argument(
-        "--period", help="updates period in seconds", type=int, default=60
+        "--period", help="updates period in seconds", type=int, default=period
     )
-    parser.add_argument("--mqtt-server", help="MQTT server", default="localhost")
-    parser.add_argument("--mqtt-port", help="MQTT port", type=int, default=1883)
-    parser.add_argument("--mqtt-username", help="MQTT username", default=None)
-    parser.add_argument("--mqtt-password", help="MQTT password", default=None)
+    parser.add_argument("--mqtt-server", help="MQTT server", default=mqtt_server)
+    parser.add_argument("--mqtt-port", help="MQTT port", type=int, default=mqtt_port)
+    parser.add_argument("--mqtt-username", help="MQTT username", default=mqtt_username)
+    parser.add_argument("--mqtt-password", help="MQTT password", default=mqtt_password)
     parser.add_argument(
-        "--mqtt-base-topic", help="MQTT base topic", default=MQTT_BASE_TOPIC
-    )
-    parser.add_argument(
-        "--ha-discover-prefix", help="HA discover mqtt prefix", default="homeassistant"
+        "--mqtt-base-topic", help="MQTT base topic", default=mqtt_base_topic
     )
     parser.add_argument(
-        "--ha-status-topic", help="HA status mqtt topic", default="homeassistant/status"
+        "--ha-discover-prefix", help="HA discover mqtt prefix", default=ha_discover_prefix
+    )
+    parser.add_argument(
+        "--ha-status-topic", help="HA status mqtt topic", default=ha_status_topic
     )
     args = parser.parse_args()
+
     config_file = {}
 
     try:
