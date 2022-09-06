@@ -245,7 +245,7 @@ def main():
         }
 
         # validate storage path provided
-        for path in config["storage_paths"]:
+        for path in config["storage_paths"].split(","):
             if not os.path.isdir(path):
                 logger.error(
                     "Invalid configuration for path %s",
