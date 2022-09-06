@@ -48,7 +48,7 @@ def rate(key, value):
     return float(rate)
 
 
-def load_properties():
+def load_properties(config):
     """Define which properties to publish."""
     properties = {
         "cpu_percent": {
@@ -60,11 +60,6 @@ def load_properties():
             "unit_of_measurement": "%",
             "icon": "mdi:memory",
             "call": lambda: psutil.virtual_memory().percent,
-        },
-        "os_disk_usage": {
-            "unit_of_measurement": "%",
-            "icon": "mdi:harddisk",
-            "call": lambda: psutil.disk_usage('/').percent,
         },
         "uptime": {
             "device_class": "timestamp",
@@ -95,6 +90,16 @@ def load_properties():
             ),
         },
     }
+
+    storage_path_list = config["storage_paths"].split(",")
+
+    for path in storage_path_list:
+        disk_name = "root" if path == "/" else slugify(path)
+        properties[f"{disk_name}_disk_usage"] = {
+            "unit_of_measurement": "%",
+            "icon": "mdi:harddisk",
+            "call": lambda: psutil.disk_usage(path).percent,
+        }
 
     if hasattr(psutil, "sensors_temperatures"):
         for temp_sensor in psutil.sensors_temperatures():
@@ -206,6 +211,9 @@ def main():
     parser.add_argument(
         "--ha-status-topic", help="HA status mqtt topic", default=os.environ.get("HA_STATUS_TOPIC", "homeassistant/status")
     )
+    parser.add_argument(
+        '--storage-paths', help="Path(s) for storage usage monitoring (comma separated values)", default=os.environ.get("STORAGE_PATHS", "/")
+    )
     args = parser.parse_args()
 
     config_file = {}
@@ -232,6 +240,7 @@ def main():
             ),
             "ha_status_topic": config_file.get("ha_status_topic", args.ha_status_topic),
             "period": config_file.get("period", args.period),
+            "storage_paths": config_file.get("storage_paths", args.storage_paths)
         }
 
         for key in list(config):
@@ -254,7 +263,7 @@ def main():
                 )
                 logger.info("Saving configuration in %s", args.config)
 
-    properties = load_properties()
+    properties = load_properties(config)
 
     logger.debug("Connecting to %s:%s", config["mqtt_server"], config["mqtt_port"])
     mqttc = mqtt.Client(
