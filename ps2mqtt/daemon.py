@@ -246,7 +246,7 @@ def main():
         for path in config["storage_paths"].split(","):
             if not os.path.isdir(path):
                 logger.error(
-                    "Invalid configuration for path %s",
+                    "Storage path %s is an invalid configuration option",
                     path,
                 )
                 sys.exit()
