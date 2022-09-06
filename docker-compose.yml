@@ -6,7 +6,7 @@ services:
     container_name: ps2mqtt
     restart: unless-stopped
     environment:
-      - MQTT_HOST=mqtt-broker-ip
+      - MQTT_SERVER=mqtt-broker-ip
       - MQTT_PORT=1883
       - MQTT_USERNAME=username
       - MQTT_PASSWORD=password
@@ -14,3 +14,4 @@ services:
       - HA_DISCOVER_PREFIX=homeassistant
       - HA_STATUS_TOPIC=ps2mqtt/status
       - PERIOD=60
+      - STORAGE_PATHS=/
