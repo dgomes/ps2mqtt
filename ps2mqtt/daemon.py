@@ -49,7 +49,7 @@ def rate(key, value):
     return float(rate)
 
 
-def load_properties(config):
+def load_properties(storage_path_list):
     """Define which properties to publish."""
     properties = {
         "cpu_percent": {
@@ -91,8 +91,6 @@ def load_properties(config):
             ),
         },
     }
-
-    storage_path_list = config["storage_paths"].split(",")
 
     for path in storage_path_list:
         disk_name = "root" if path == "/" else slugify(path)
@@ -274,7 +272,7 @@ def main():
                 )
                 logger.info("Saving configuration in %s", args.config)
 
-    properties = load_properties(config)
+    properties = load_properties(config["storage_paths"].split(","))
 
     logger.debug("Connecting to %s:%s", config["mqtt_server"], config["mqtt_port"])
     mqttc = mqtt.Client(
