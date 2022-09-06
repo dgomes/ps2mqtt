@@ -8,6 +8,7 @@ import platform
 import os
 import sched
 import time
+import sys
 from datetime import datetime
 from decimal import Decimal, getcontext
 
@@ -242,6 +243,16 @@ def main():
             "period": config_file.get("period", args.period),
             "storage_paths": config_file.get("storage_paths", args.storage_paths)
         }
+
+        # validate storage path provided
+        for path in config["storage_paths"]:
+            if not os.path.isdir(path):
+                logger.error(
+                    "Invalid configuration for path %s",
+                    path,
+                )
+                sys.exit()
+
 
         for key in list(config):
             if args.__dict__[key] != parser.get_default(
