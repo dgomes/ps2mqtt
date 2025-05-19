@@ -16,7 +16,7 @@ setup(
     long_description_content_type="text/markdown",
     packages=["ps2mqtt"],
     install_requires=[
-        "setuptools==70.0.0",
+        "setuptools==78.1.1",
         "paho-mqtt>=1.6.1",
         "python-slugify>=6.1.1",
         "psutil==5.9.0",
