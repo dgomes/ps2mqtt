@@ -19,8 +19,8 @@ setup(
         "setuptools==78.1.1",
         "paho-mqtt>=1.6.1",
         "python-slugify>=6.1.1",
-        "psutil==5.9.0",
-        "PyYAML==6.0",
+        "psutil==5.9.5",
+        "PyYAML==6.0.1",
     ],
     entry_points={
         "console_scripts": [
