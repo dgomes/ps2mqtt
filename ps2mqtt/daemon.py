@@ -116,7 +116,7 @@ def gen_ha_config(sensor, properties, base_topic):
     json_config = {
         "name": sensor,
         "unique_id": slugify(f"{platform.node()} {sensor}"),
-        "object_id": slugify(f"{platform.node()} {sensor}"),
+        "default_entity_id": slugify(f"{platform.node()} {sensor}"),
         "state_topic": MQTT_STATE_TOPIC.format(base_topic, sensor),
         "availability_topic": MQTT_PS2MQTT_STATUS.format(base_topic),
         "payload_available": MQTT_AVAILABLE,
